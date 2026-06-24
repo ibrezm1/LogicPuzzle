@@ -12,6 +12,7 @@
   let completedLevels = [];
   let timerInterval = null;
   let secondsElapsed = 0;
+  let hintsUsed = 0;
   
   // Drag & Drop State
   let draggingPiece = null;
@@ -93,7 +94,9 @@
     
     placedPieces = [];
     selectedPiece = null;
+    hintsUsed = 0;
     updateControlsUI();
+    updateHintButtonUI();
 
     // Create pieces list based on active level solution
     inventoryPieces = [];
@@ -284,6 +287,25 @@
       controls.classList.remove('hidden');
       name.textContent = `${selectedPiece.w}x${selectedPiece.h} Block`;
       status.textContent = selectedPiece.x !== null ? 'On Board' : 'In Tray';
+    }
+  }
+
+  function updateHintButtonUI() {
+    const hintBtn = document.getElementById('hint-btn');
+    if (!hintBtn) return;
+    const remaining = 3 - hintsUsed;
+    
+    hintBtn.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4"></i> Get Hint (${remaining} left)`;
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+    
+    if (remaining <= 0) {
+      hintBtn.disabled = true;
+      hintBtn.className = 'flex-1 py-3 px-4 rounded-xl bg-cyan-600/5 border border-cyan-500/10 text-cyan-400/40 cursor-not-allowed font-bold text-sm tracking-wide flex items-center justify-center gap-2 transition-all';
+    } else {
+      hintBtn.disabled = false;
+      hintBtn.className = 'flex-1 py-3 px-4 rounded-xl bg-cyan-600/10 border border-cyan-500/30 hover:bg-cyan-600/20 text-cyan-400 font-bold text-sm tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95';
     }
   }
 
@@ -644,8 +666,15 @@
 
   // Hint feature
   function triggerHint() {
+    if (hintsUsed >= 3) {
+      GameAudio.playSound('error');
+      return;
+    }
+
     const nextPiece = inventoryPieces.find(p => p.x === null);
     if (nextPiece) {
+      hintsUsed++;
+      updateHintButtonUI();
       const solutionPos = currentLevel.solution.find(sol => sol.id === nextPiece.id);
       
       // Before placing, check if there is another piece already occupying its target coordinates
