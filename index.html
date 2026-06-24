@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mondrian Blocks - Spatial Logic Puzzle</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            heading: ['Outfit', 'sans-serif'],
+          },
+          boxShadow: {
+            'glow-cyan': '0 0 15px rgba(6, 182, 212, 0.4)',
+            'glow-red': '0 0 15px rgba(239, 68, 68, 0.4)',
+            'glow-green': '0 0 15px rgba(16, 185, 129, 0.4)',
+            'inner-deep': 'inset 0 4px 12px 0 rgba(0, 0, 0, 0.6)',
+            'inner-light': 'inset 0 2px 6px 0 rgba(0, 0, 0, 0.1)',
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Bevel and 3D Plastic Block Style */
+    .block-3d {
+      box-shadow: 
+        inset 2px 2px 0px rgba(255, 255, 255, 0.35),
+        inset -2px -2px 0px rgba(0, 0, 0, 0.4),
+        0 4px 6px -1px rgba(0, 0, 0, 0.2), 
+        0 2px 4px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .block-3d-locked {
+      box-shadow: 
+        inset 1px 1px 0px rgba(255, 255, 255, 0.15),
+        inset -1px -1px 0px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Grid Slot Bevel (Tray Look) */
+    .tray-grid {
+      background-size: 100% 100%;
+    }
+
+    /* Pulse Outline Animation */
+    @keyframes pulse-outline {
+      0%, 100% { outline-color: rgba(6, 182, 212, 0.4); outline-offset: 2px; }
+      50% { outline-color: rgba(6, 182, 212, 0.9); outline-offset: 4px; }
+    }
+    .pulse-target {
+      animation: pulse-outline 2s infinite;
+      outline: 2px dashed;
+    }
+
+    /* Dragging ghost styling */
+    .dragging-ghost {
+      pointer-events: none;
+      opacity: 0.85;
+      transform: scale(1.02);
+      transition: transform 0.1s ease;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+    }
+
+    /* Custom Scrollbar for Inventory */
+    .custom-scroll::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.5);
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.8);
+    }
+
+    /* Prevent default dragging overlays */
+    * {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    /* Prevent default scrolling while dragging pieces on mobile/tablet */
+    .placed-piece-element, #inventory > div {
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="transition-colors duration-300 font-sans min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col overflow-x-hidden">
+
+  <!-- Confetti Canvas -->
+  <canvas id="confetti-canvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-50 hidden"></canvas>
+
+  <!-- Header Section -->
+  <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md sticky top-0 z-40 px-4 py-3 transition-colors duration-300">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Title & Branding -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-red-500 via-yellow-500 to-blue-600 flex items-center justify-center shadow-md shadow-indigo-500/10">
+          <span class="font-heading font-extrabold text-white text-lg tracking-wider">M</span>
+        </div>
+        <div>
+          <h1 class="font-heading font-extrabold text-xl tracking-tight bg-gradient-to-r from-slate-800 to-slate-950 dark:from-slate-100 dark:via-cyan-400 dark:to-indigo-400 bg-clip-text text-transparent">
+            Mondrian Blocks
+          </h1>
+          <p class="text-xs text-slate-600 dark:text-slate-400">88 Levels Spatial Logic Challenge</p>
+        </div>
+      </div>
+
+      <!-- Controls & Navigation -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Level Dropdown -->
+        <div class="flex items-center gap-1.5 bg-slate-200/80 dark:bg-slate-800/80 rounded-xl px-2.5 py-1.5 border border-slate-300 dark:border-slate-700/60">
+          <span class="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Level</span>
+          <select id="level-select" class="bg-transparent text-sm font-extrabold focus:outline-none cursor-pointer text-indigo-600 dark:text-cyan-400">
+            <!-- 88 Levels dynamically inserted -->
+          </select>
+        </div>
+
+        <!-- Mute/Audio Button -->
+        <button id="mute-btn" class="w-9 h-9 flex items-center justify-center bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300/80 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700/60 transition-all active:scale-95" title="Toggle Sound">
+          <i data-lucide="volume-2" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="theme-btn" class="w-9 h-9 flex items-center justify-center bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300/80 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700/60 transition-all active:scale-95" title="Toggle Light/Dark Mode">
+          <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+          <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+        </button>
+
+        <!-- Help Info Toggle -->
+        <button id="help-btn" class="w-9 h-9 flex items-center justify-center bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300/80 dark:hover:bg-slate-700 rounded-xl text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700/60 transition-all active:scale-95" title="How to Play">
+          <i data-lucide="help-circle" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Game Canvas Container -->
+  <main class="flex-grow max-w-6xl w-full mx-auto p-2 sm:p-4 flex flex-col lg:flex-row gap-4 sm:gap-6 items-stretch justify-center">
+
+    <!-- Left Side: Game Board Panel -->
+    <div class="flex-grow flex flex-col items-center justify-center gap-4 bg-slate-100/80 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-3 sm:p-6 shadow-xl relative min-w-0">
+      
+      <!-- Phase Indicator / Banner -->
+      <div class="w-full flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-3 w-3">
+            <span id="phase-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span id="phase-dot" class="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+          </span>
+          <span id="phase-title" class="font-heading font-bold text-sm tracking-wide text-slate-700 dark:text-slate-300 uppercase">
+            Phase 1: Setup Blocks
+          </span>
+        </div>
+        <div class="text-xs bg-slate-200 dark:bg-slate-800 px-3 py-1 rounded-full text-slate-600 dark:text-slate-400 font-medium">
+          Progress: <span id="comp-count" class="font-bold text-indigo-600 dark:text-cyan-400">0</span>/88 Cleared
+        </div>
+      </div>
+
+      <!-- The Board Grid Wrapper -->
+      <div class="relative w-full max-w-[440px] aspect-square bg-slate-300 dark:bg-slate-950 rounded-2xl p-4 shadow-inner-light dark:shadow-inner-deep border-4 border-slate-400 dark:border-slate-800 flex items-center justify-center transition-all duration-300">
+        
+        <!-- Board Cells (8x8) -->
+        <div id="board" class="relative w-full h-full grid grid-cols-8 grid-rows-8 gap-0.5 bg-slate-200 dark:bg-slate-900 rounded-lg overflow-hidden border border-slate-350 dark:border-slate-850">
+          <!-- 64 Slots and snap preview will be inserted dynamically -->
+        </div>
+
+
+      </div>
+
+      <!-- Board Action Buttons -->
+      <div class="w-full max-w-[440px] flex gap-3">
+        <button id="reset-btn" class="flex-1 py-3 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-350 dark:border-slate-700 transition-all font-bold text-sm tracking-wide flex items-center justify-center gap-2 active:scale-95">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          Reset Board
+        </button>
+        <button id="hint-btn" class="flex-1 py-3 px-4 rounded-xl bg-cyan-600/10 border border-cyan-500/30 hover:bg-cyan-600/20 text-cyan-400 font-bold text-sm tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+          Get Hint
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Right Side: Inventory and Control Panel -->
+    <div class="w-full lg:w-[420px] flex flex-col gap-6">
+
+      <!-- Active Selected Block Controls Panel -->
+      <div id="controls-panel" class="bg-slate-100/80 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4">
+        <h3 class="font-heading font-extrabold text-sm tracking-wider text-slate-600 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-800/80 pb-2">
+          Piece Controls
+        </h3>
+        
+        <div id="no-selection-msg" class="text-sm text-slate-500 dark:text-slate-500 py-4 text-center">
+          Tap a piece in the tray or board to edit
+        </div>
+
+        <div id="selection-controls" class="hidden flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400">Selected: <span id="selected-piece-name" class="font-extrabold text-cyan-400">2x3 Block</span></span>
+            <span id="selected-piece-status" class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Active</span>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <button id="rotate-btn" class="py-3 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-350 dark:border-slate-700 text-slate-800 dark:text-slate-200 transition-all font-bold text-xs uppercase flex items-center justify-center gap-2 active:scale-95">
+              <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+              Rotate (R)
+            </button>
+            <button id="flip-btn" class="py-3 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-350 dark:border-slate-700 text-slate-800 dark:text-slate-200 transition-all font-bold text-xs uppercase flex items-center justify-center gap-2 active:scale-95">
+              <i data-lucide="flip-horizontal" class="w-4 h-4"></i>
+              Flip (F)
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500 text-center mt-1">
+            Tip: You can also Right-Click or press 'R' to rotate, and 'F' to flip while dragging.
+          </p>
+        </div>
+      </div>
+
+      <!-- Inventory Tray Panel -->
+      <div class="flex-grow bg-slate-100/80 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col gap-4 min-h-[320px]">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-2">
+          <h3 class="font-heading font-extrabold text-sm tracking-wider text-slate-600 dark:text-slate-400 uppercase">
+            Inventory Tray
+          </h3>
+          <span class="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-0.5 rounded-full" id="inventory-count">
+            11 Pieces
+          </span>
+        </div>
+
+        <!-- Inventory List container -->
+        <div id="inventory" class="flex-grow overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden custom-scroll flex lg:grid lg:grid-cols-2 gap-4 items-center justify-start lg:justify-items-center p-2 min-h-0">
+          <!-- Remaining Pieces placed here -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer Info -->
+  <footer class="py-4 text-center text-xs text-slate-500 dark:text-slate-600 border-t border-slate-200 dark:border-slate-900 bg-slate-50 dark:bg-slate-950">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>Inspired by Mondrian Blocks Spatial Brain Teaser.</p>
+      <div class="flex gap-4">
+        <span>Desktop: Right-click / 'R' to rotate, 'F' to flip</span>
+        <span>Mobile: Tap to select & edit</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 max-w-lg w-full rounded-3xl p-6 shadow-2xl relative">
+      <button id="close-help-btn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 dark:hover:text-slate-200 transition-colors w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <h2 class="font-heading font-extrabold text-2xl mb-4 bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">
+        How to Play
+      </h2>
+      
+      <div class="space-y-4 text-sm text-slate-600 dark:text-slate-300">
+        <div class="flex gap-3">
+          <div class="w-6 h-6 shrink-0 bg-cyan-500/20 text-cyan-400 flex items-center justify-center rounded-full font-bold">1</div>
+          <p>
+            Each puzzle level starts with the <strong>black starter blocks</strong> already placed and locked in their correct positions on the board. You cannot move or lift locked blocks.
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <div class="w-6 h-6 shrink-0 bg-cyan-500/20 text-cyan-400 flex items-center justify-center rounded-full font-bold">2</div>
+          <p>
+            Drag the remaining <strong>colored blocks</strong> from the inventory onto the empty slots of the 8x8 grid.
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <div class="w-6 h-6 shrink-0 bg-cyan-500/20 text-cyan-400 flex items-center justify-center rounded-full font-bold">3</div>
+          <p>
+            The goal is to pack the board completely with <strong>zero empty cells</strong> and <strong>zero overlaps</strong>!
+          </p>
+        </div>
+
+        <div class="border-t border-slate-200 dark:border-slate-800 pt-4">
+          <h4 class="font-bold text-slate-800 dark:text-slate-200 mb-2">Controls:</h4>
+          <ul class="list-disc pl-5 space-y-1 text-xs">
+            <li><strong>Drag & Drop:</strong> Drag blocks directly to place them on the grid.</li>
+            <li><strong>Rotate:</strong> Press the <strong>'R' key</strong>, <strong>Right-Click</strong> while dragging, or use the <strong>Rotate button</strong>.</li>
+            <li><strong>Flip:</strong> Press the <strong>'F' key</strong> or use the <strong>Flip button</strong>.</li>
+            <li><strong>Lift/Return:</strong> Click or tap a placed piece on the board to lift it back to the inventory.</li>
+          </ul>
+        </div>
+      </div>
+
+      <button id="help-close-btn" class="w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 text-white font-bold transition-all shadow-lg hover:shadow-cyan-500/20 hover:brightness-110 active:scale-98">
+        Start Playing!
+      </button>
+    </div>
+  </div>
+
+  <!-- Level Success Modal -->
+  <div id="success-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 max-w-md w-full rounded-3xl p-6 shadow-2xl text-center relative overflow-hidden">
+      <!-- Success design -->
+      <div class="absolute -top-12 -left-12 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl"></div>
+      <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl"></div>
+
+      <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
+        <i data-lucide="check-circle" class="w-10 h-10"></i>
+      </div>
+
+      <h2 class="font-heading font-extrabold text-3xl mb-2 text-slate-900 dark:text-slate-100">
+        Level Cleared!
+      </h2>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+        Excellent spatial reasoning! You packed the grid perfectly.
+      </p>
+
+      <div class="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 mb-6 grid grid-cols-2 gap-4">
+        <div>
+          <span class="text-xs text-slate-500 uppercase tracking-wider block">Time Taken</span>
+          <span id="time-taken" class="font-heading font-extrabold text-lg text-cyan-400">00:45</span>
+        </div>
+        <div>
+          <span class="text-xs text-slate-500 uppercase tracking-wider block">Level ID</span>
+          <span id="cleared-level-name" class="font-heading font-extrabold text-lg text-indigo-400">Level 1</span>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button id="success-retry-btn" class="flex-1 py-3.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold transition-all active:scale-95">
+          Replay
+        </button>
+        <button id="success-next-btn" class="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 text-white font-bold transition-all shadow-lg shadow-cyan-500/10 hover:brightness-110 active:scale-95">
+          Next Level
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Logic Scripts -->
+  <script src="js/audio.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
